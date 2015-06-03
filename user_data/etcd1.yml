@@ -1,0 +1,35 @@
+#cloud-config
+
+---
+hostname: etcd1
+coreos:
+  etcd2:
+    advertise-client-urls: https://$public_ipv4:2379
+    listen-client-urls: https://0.0.0.0:2379,https://0.0.0.0:4001
+    listen-peer-urls: https://$public_ipv4:2380,https://$public_ipv4:7001
+  units:
+  - name: etcd2.service
+    command: start
+write_files:
+  - path: /run/systemd/system/etcd2.service.d/30-certificates.conf
+    permissions: 0644
+    content: |
+      [Service]
+      # Client Env Vars
+      Environment=ETCD_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      Environment=ETCD_CERT_FILE=/etc/ssl/etcd/certs/etcd-1.host.crt
+      Environment=ETCD_KEY_FILE=/etc/ssl/etcd/private/etcd-1.key
+      Environment=ETCD_CLIENT_CERT_AUTH=true
+      # Peer Env Vars
+      Environment=ETCD_PEER_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      Environment=ETCD_PEER_CERT_FILE=/etc/ssl/etcd/certs/etcd-1.host.crt
+      Environment=ETCD_PEER_KEY_FILE=/etc/ssl/etcd/private/etcd-1.key
+      Environment=ETCD_PEER_CLIENT_CERT_AUTH=true
+  - path: /etc/profile.d/etcdctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure etcdctl to work with our etcd servers set above
+      export ETCDCTL_CERT_FILE=/etc/ssl/etcd/certs/client.host.crt
+      export ETCDCTL_KEY_FILE=/etc/ssl/etcd/private/client.key
+      export ETCDCTL_CA_FILE=/etc/ssl/etcd/certs/ca.crt

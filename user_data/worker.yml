@@ -1,0 +1,76 @@
+#cloud-config
+
+---
+hostname: coreos-01
+coreos:
+ fleet:
+  fleet:
+    public-ip: $public_ipv4
+    metadata: "role=worker,cloud=do,disk=ssd"
+  units:
+  - name: etcd2.service
+    mask: true
+  - name: etcd.service
+    mask: true
+  - name: fleet.service
+    command: start
+  - name: docker-tcp.socket
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=Docker Socket for the API
+
+      [Socket]
+      ListenStream=2375
+      Service=docker.service
+      BindIPv6Only=both
+
+      [Install]
+      WantedBy=sockets.target
+write_files:
+  - path: /run/systemd/system/etcd2.service.d/30-certificates.conf
+    permissions: 0644
+    content: |
+      [Service]
+      # Client Env Vars
+      Environment=ETCD_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      Environment=ETCD_CERT_FILE=/etc/ssl/etcd/certs/etcd-1.host.crt
+      Environment=ETCD_KEY_FILE=/etc/ssl/etcd/private/etcd-1.key
+      Environment=ETCD_CLIENT_CERT_AUTH=true
+      # Peer Env Vars
+      Environment=ETCD_PEER_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      Environment=ETCD_PEER_CERT_FILE=/etc/ssl/etcd/certs/etcd-1.host.crt
+      Environment=ETCD_PEER_KEY_FILE=/etc/ssl/etcd/private/etcd-1.key
+      Environment=ETCD_PEER_CLIENT_CERT_AUTH=true
+  - path: /run/systemd/system/fleet.service.d/30-certificates.conf
+    permissions: 0644
+    content: |
+      [Service]
+      # Client auth certs
+      Environment=FLEET_ETCD_CAFILE=/etc/ssl/etcd/certs/ca.crt
+      Environment=FLEET_ETCD_CERTFILE=/etc/ssl/etcd/certs/client.host.crt
+      Environment=FLEET_ETCD_KEYFILE=/etc/ssl/etcd/private/client.key
+      # Replace with etcd1 server ip
+      Environment=FLEET_ETCD_SERVERS="https://my_etcd_server_ip:2379"
+  - path: /etc/profile.d/etcdctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure etcdctl to work with our etcd servers set above
+      export ETCDCTL_CERT_FILE=/etc/ssl/etcd/certs/client.host.crt
+      export ETCDCTL_KEY_FILE=/etc/ssl/etcd/private/client.key
+      export ETCDCTL_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      # Replace with etcd1 server ip
+      export ETCDCTL_PEERS="https://my_etcd_server_ip:2379"
+  - path: /etc/profile.d/fleetctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure fleetctl to work with our etcd servers set above
+      export FLEETCTL_CERT_FILE=/etc/ssl/etcd/certs/client.host.crt
+      export FLEETCTL_KEY_FILE=/etc/ssl/etcd/private/client.key
+      export FLEETCTL_CA_FILE=/etc/ssl/etcd/certs/ca.crt
+      # Replace with etcd1 server ip
+      export FLEETCTL_ENDPOINT="https://my_etcd_server_ip:2379"
+      export FLEETCTL_EXPERIMENTAL_API=true
